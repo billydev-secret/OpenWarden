@@ -121,7 +121,6 @@ class ModBot(commands.Bot):
         await self.db.close()
         await super().close()
 
-
 async def main():
     load_dotenv()
     setup_logging()
