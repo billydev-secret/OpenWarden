@@ -11,6 +11,7 @@ import asyncio
 import pathlib
 
 import discord
+from discord import app_commands
 from discord.ext import commands
 from dotenv import load_dotenv
 
@@ -69,6 +70,8 @@ class ModBot(commands.Bot):
         self.db: Database = Database(os.getenv("DATABASE_PATH", "data/jailbot.db"))
 
     async def setup_hook(self):
+        self.tree.on_error = self._on_tree_error
+
         log.debug("Initialising database")
         await self.db.initialize()
 
@@ -115,6 +118,31 @@ class ModBot(commands.Bot):
             self.user.id,
             len(self.guilds),
         )
+
+    async def _on_tree_error(
+        self,
+        interaction: discord.Interaction,
+        error: app_commands.AppCommandError,
+    ):
+        """Catch-all so unhandled slash-command errors produce a visible reply."""
+        # CheckFailure from staff_check already sent a response; nothing else to do.
+        if isinstance(error, app_commands.CheckFailure):
+            return
+
+        log.exception(
+            "Unhandled app-command error in /%s: %s",
+            interaction.command.qualified_name if interaction.command else "unknown",
+            error,
+        )
+
+        msg = f"Something went wrong: {error}"
+        try:
+            if interaction.response.is_done():
+                await interaction.followup.send(msg, ephemeral=True)
+            else:
+                await interaction.response.send_message(msg, ephemeral=True)
+        except discord.HTTPException:
+            pass
 
     async def close(self):
         log.info("Shutting down — closing database connection")
